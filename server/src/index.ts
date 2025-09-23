@@ -7,8 +7,16 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
+import multer from "multer";
+
 import { query } from "./db";
-import artistRoutes from "./routes/artistRoutes.ts";
+import artistRoutes from "./routes/artistRoutes";
+import albumRoutes from "./routes/albumRoutes";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json());
@@ -16,10 +24,25 @@ app.use(cookieParser());
 
 const CLIENT = process.env.CLIENT_ORIGIN || "http://localhost:5173";
 app.use(cors({ origin: CLIENT, credentials: true }));
+
+// Serve uploaded files
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 app.use("/api/artists", artistRoutes);
+app.use("/api/albums", albumRoutes);
 
 const PORT = Number(process.env.PORT || 4000);
 const JWT_SECRET = process.env.JWT_SECRET || "devsecret";
+
+// -------------------- Multer Setup --------------------
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, path.join(__dirname, "uploads")),
+  filename: (req, file, cb) => {
+    const uniqueName = `${Date.now()}-${file.originalname}`;
+    cb(null, uniqueName);
+  },
+});
+const upload = multer({ storage });
 
 // -------------------- Types --------------------
 interface SignupUserPayload {
@@ -49,8 +72,9 @@ async function findUserByUsernameOrEmail(identifier: string) {
 }
 
 // -------------------- Signup User --------------------
-app.post("/api/auth/signup-user", async (req: Request<{}, {}, SignupUserPayload>, res: Response) => {
-  const { username, email, password, display_name, subscription_id, avatar_url } = req.body;
+app.post("/api/auth/signup-user", upload.single("avatar"), async (req: Request, res: Response) => {
+  const { username, email, password, display_name, subscription_id } = req.body;
+  const avatar_url = req.file ? `/uploads/${req.file.filename}` : null;
 
   if (!username || !email || !password) return res.status(400).json({ message: "Missing fields" });
 
@@ -63,14 +87,14 @@ app.post("/api/auth/signup-user", async (req: Request<{}, {}, SignupUserPayload>
     await query(
       `INSERT INTO users (username, email, password_hash, display_name, subscription_id, avatar_url)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [username, email, password_hash, display_name || null, subscription_id || null, avatar_url || null]
+      [username, email, password_hash, display_name || null, subscription_id || null, avatar_url]
     );
 
     const user = await findUserByUsernameOrEmail(username);
     const token = jwt.sign({ user_id: user.id, role: "user" }, JWT_SECRET, { expiresIn: "2h" });
     res.cookie("token", token, { httpOnly: true, sameSite: "lax" });
 
-    const safeUser = { ...user };
+    const safeUser = { ...user, avatar_url };
     delete safeUser.password_hash;
     res.json({ user: safeUser, token });
   } catch (err) {
@@ -80,8 +104,9 @@ app.post("/api/auth/signup-user", async (req: Request<{}, {}, SignupUserPayload>
 });
 
 // -------------------- Signup Artist --------------------
-app.post("/api/auth/signup-artist", async (req: Request<{}, {}, SignupArtistPayload>, res: Response) => {
-  const { username, email, password, stage_name, bio, country, start_year, avatar_url } = req.body;
+app.post("/api/auth/signup-artist", upload.single("avatar"), async (req: Request, res: Response) => {
+  const { username, email, password, stage_name, bio, country, start_year } = req.body;
+  const avatar_url = req.file ? `/uploads/${req.file.filename}` : null;
 
   if (!username || !email || !password || !stage_name) return res.status(400).json({ message: "Missing fields" });
 
@@ -91,6 +116,7 @@ app.post("/api/auth/signup-artist", async (req: Request<{}, {}, SignupArtistPayl
 
     const password_hash = await bcrypt.hash(password, 12);
 
+    // Insert user with display_name = stage_name
     await query(
       `INSERT INTO users (username, email, password_hash, display_name)
        VALUES (?, ?, ?, ?)`,
@@ -99,10 +125,11 @@ app.post("/api/auth/signup-artist", async (req: Request<{}, {}, SignupArtistPayl
 
     const user = await findUserByUsernameOrEmail(username);
 
+    // Insert into artists table with avatar
     const result: any = await query(
       `INSERT INTO artists (user_id, name, bio, country, start_year, avatar_url)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [user.id, stage_name, bio || null, country || null, start_year || null, avatar_url || null]
+      [user.id, stage_name, bio || null, country || null, start_year || null, avatar_url]
     );
 
     const artistId = result.insertId;

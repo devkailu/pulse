@@ -1,18 +1,48 @@
 import express, { Request, Response } from "express";
 import multer from "multer";
-import db from "../db.js"; // or { db } if you export that way
+import db, { query } from "../db.js"; // or { db } if you export that way
 
 const router = express.Router();
 const upload = multer({ dest: "uploads/" });
 
-// Get all artists
-router.get("/artists", async (_req: Request, res: Response) => {
+// -------------------- Get all artists (for discovery) --------------------
+router.get("/artists", async (req: Request, res: Response) => {
   try {
-    const [rows] = await db.query("SELECT id, name FROM artists");
-    res.json(rows);
+    const sort = req.query.sort === "alphabetical" ? "ORDER BY name ASC" : "";
+    const artists = await query(`SELECT id, name, avatar_url FROM artists ${sort}`);
+    res.json(artists);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "DB error fetching artists" });
+  }
+});
+
+// -------------------- Get single artist (for profile/dashboard) --------------------
+router.get("/:id", async (req: Request, res: Response) => {
+  const artistId = req.params.id;
+  try {
+    const [artist] = await query(
+      `SELECT id, user_id, name, bio, country, start_year, avatar_url, follower_count, created_at
+       FROM artists
+       WHERE id = ?`,
+      [artistId]
+    );
+
+    if (!artist) return res.status(404).json({ message: "Artist not found" });
+
+    // Fetch albums for this artist
+    const albums = await query(
+      `SELECT id, title, cover_url, created_at
+       FROM albums
+       WHERE artist_id = ?
+       ORDER BY created_at DESC`,
+      [artistId]
+    );
+
+    res.json({ ...artist, albums });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "DB error fetching artist" });
   }
 });
 
@@ -88,6 +118,24 @@ router.post("/albums", upload.single("cover"), async (req: Request, res: Respons
     res.status(500).json({ error: "DB error releasing album" });
   } finally {
     conn.release();
+  }
+});
+
+
+// Get all albums (recent first optional)
+router.get("/albums", async (req: Request, res: Response) => {
+  try {
+    const sort = req.query.sort === "recent" ? "ORDER BY created_at DESC" : "";
+    const [rows] = await db.query(`
+      SELECT a.id, a.title, ar.name AS artist_name, a.cover_url, a.created_at
+      FROM albums a
+      JOIN artists ar ON a.artist_id = ar.id
+      ${sort}
+    `);
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "DB error fetching albums" });
   }
 });
 

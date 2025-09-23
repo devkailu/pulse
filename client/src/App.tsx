@@ -23,8 +23,8 @@ export default function App() {
       {/* Main layout (no protection for now) */}
       <Route path="/" element={<Layout />}>
         <Route index element={<Home />} />        
-        <Route path="albums" element={<AlbumPage />} />
-        <Route path="artists/:id" element={<ArtistPage />} />
+        <Route path="album/:id" element={<AlbumPage />} />
+        <Route path="artist/:id" element={<ArtistPage />} />
         <Route path="artist-dashboard" element={<ArtistDashboard />} />
         <Route path="playlists/:id" element={<PlaylistPage />} />
         <Route path="search" element={<div className="glass p-6">Search Page</div>} />

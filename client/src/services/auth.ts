@@ -32,22 +32,17 @@ export interface UserResponse {
   token: string;
 }
 
-// Signup user
-export const signupUser = (payload: SignupUserPayload): Promise<UserResponse> =>
-  api.post('/api/auth/signup-user', payload).then(res => res.data);
+export const signupUser = (payload: SignupUserPayload | FormData): Promise<UserResponse> =>
+  api.post('/api/auth/signup-user', payload, { headers: { 'Content-Type': 'multipart/form-data' } }).then(res => res.data);
 
-// Signup artist
-export const signupArtist = (payload: SignupArtistPayload): Promise<UserResponse> =>
-  api.post('/api/auth/signup-artist', payload).then(res => res.data);
+export const signupArtist = (payload: SignupArtistPayload | FormData): Promise<UserResponse> =>
+  api.post('/api/auth/signup-artist', payload, { headers: { 'Content-Type': 'multipart/form-data' } }).then(res => res.data);
 
-// Login
 export const login = (payload: LoginPayload): Promise<UserResponse> =>
   api.post('/api/auth/login', payload).then(res => res.data);
 
-// Get current logged-in user
 export const me = (): Promise<{ user: any }> =>
   api.get('/api/auth/me').then(res => res.data);
 
-// Logout
 export const logout = (): Promise<{ ok: boolean }> =>
   api.post('/api/auth/logout').then(res => res.data);

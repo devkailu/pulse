@@ -1,4 +1,6 @@
-// src/components/AlbumCard.tsx
+import { BACKEND_URL } from "../constants";
+import { useNavigate } from "react-router-dom";
+
 type Album = {
   id: number;
   title: string;
@@ -7,17 +9,36 @@ type Album = {
 };
 
 export default function AlbumCard({ album }: { album: Album }) {
+  const navigate = useNavigate();
+
+  const coverPath =
+    album.cover?.startsWith("/uploads/")
+      ? album.cover
+      : album.cover
+      ? `/uploads/${album.cover}`
+      : undefined;
+
   return (
-    <div className="w-36 flex flex-col gap-4">
-      <div className="w-36 h-36 rounded-xl bg-white/6 border border-white/8 flex items-center justify-center">
-        {/* placeholder cover */}
-        <div className="w-32 h-32 rounded-lg bg-gradient-to-br from-sky-400/30 to-indigo-700/20 flex items-center justify-center text-white font-semibold">
-          ◼
-        </div>
+    <div
+      onClick={() => navigate(`/album/${album.id}`)} // ✅ path param
+      className="w-40 flex flex-col gap-3 cursor-pointer transition duration-200 hover:brightness-125 hover:bg-white/10 p-2 rounded-xl"
+    >
+      <div className="w-36 h-36 rounded-xl border border-white/20 p-2 overflow-hidden flex items-center justify-center bg-white/10">
+        {coverPath ? (
+          <img
+            src={`${BACKEND_URL}${coverPath}`}
+            alt={album.title}
+            className="w-full h-full object-cover rounded-lg"
+          />
+        ) : (
+          <div className="w-32 h-32 rounded-lg bg-gradient-to-br from-sky-400/30 to-indigo-700/20 flex items-center justify-center text-white font-semibold">
+            ◼
+          </div>
+        )}
       </div>
-      <div className="flex flex-col gap-1">
-        <div className="text-sm mx-auto font-semibold">{album.title}</div>
-        <div className="text-xs mx-auto text-white/60">{album.artist}</div>
+      <div className="flex flex-col items-center text-center gap-1">
+        <div className="text-sm font-semibold">{album.title}</div>
+        <div className="text-xs text-white/60">{album.artist}</div>
       </div>
     </div>
   );
