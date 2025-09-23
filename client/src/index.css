@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Root background image helper (use on top-level wrapper) */
+.app-bg {
+  background-image: url('/bg.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  min-height: 100vh;
+}
+
+/* Robust glassmorphism utility */
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 6px 30px rgba(8, 15, 22, 0.45);
+  backdrop-filter: blur(12px) saturate(110%);
+  -webkit-backdrop-filter: blur(12px) saturate(110%);
+  border-radius: 14px;
+}
+
+/* Slightly darker variant for the sidebar panels */
+.glass-dark {
+  background: rgba(2, 6, 23, 0.68); /* dark tint */
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 6px 30px rgba(2, 6, 23, 0.65);
+}
+
+/* Range (progress/volume) styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: rgba(255,255,255,0.10);
+  border-radius: 999px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  background: rgba(255,255,255,0.10);
+  border-radius: 999px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #111827;
+  border: 3px solid rgba(255,255,255,0.9);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+  margin-top: -4px;
+}
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  background: rgba(255,255,255,0.10);
+  border-radius: 999px;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #111827;
+  border: 3px solid rgba(255,255,255,0.9);
+}
+
+/* smaller range style for volume (optional) */
+.range-sm {
+  height: 4px;
+}
+
+.btn-glass {
+  @apply px-6 py-3 rounded-lg bg-white/10 border border-white/20 text-white hover:bg-white/20 transition;
+}
+.btn-submit {
+  @apply w-full py-3 rounded-lg bg-blue-900/40 border border-white/20 text-white font-semibold hover:bg-blue-900/60 transition;
+}
+.input-glass {
+  @apply w-full p-3 rounded bg-blue-900/30 text-white placeholder-white/50 outline-none;
+}
+.modal {
+  @apply fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50;
+}
+.modal-content {
+  @apply bg-white/10 backdrop-blur-3xl border border-white/20 rounded-2xl p-8 w-full max-w-xl space-y-4 shadow-2xl relative;
+}
+.close-btn {
+  @apply absolute top-4 right-4 p-2 rounded hover:bg-white/10;
+}
+
