@@ -4,7 +4,7 @@ import TrackCard from "../components/TrackCard";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../services/api";
-import { BACKEND_URL } from "../constants"; // you already use this in ArtistCard
+import { BACKEND_URL } from "../constants";
 
 type Track = {
   id: number;
@@ -20,7 +20,7 @@ type Album = {
   title: string;
   year: number;
   artist: string;
-  cover?: string; // ✅ new
+  cover?: string;
 };
 
 type Artist = {
@@ -36,40 +36,51 @@ type Artist = {
 export default function ArtistPage() {
   const { id } = useParams<{ id: string }>();
   const [artist, setArtist] = useState<Artist | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
-
     let cancelled = false;
+
     (async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // IMPORTANT: use your `api` instance so request targets backend (http://localhost:4000)
         const res = await api.get(`/api/artists/${id}`);
-        // quick debug log so you can inspect shape in console
         console.log("GET /api/artists/:id response:", res.data);
 
         if (cancelled) return;
-
         const data = res.data as any;
 
-        // Ensure albums and singles are arrays
+        // Defensive defaults
         data.albums = Array.isArray(data.albums) ? data.albums : [];
         data.singles = Array.isArray(data.singles) ? data.singles : [];
 
-        // Normalize avatar -> if it's a relative path, prefix with BACKEND_URL so browser requests backend
-        if (data.avatar && typeof data.avatar === "string" && !/^https?:\/\//.test(data.avatar)) {
+        // Normalize avatar (prefix only if starts with '/')
+        if (data.avatar && typeof data.avatar === "string" && data.avatar.startsWith("/")) {
           data.avatar = `${BACKEND_URL}${data.avatar}`;
         }
+
+        // Normalize album covers
+        data.albums = data.albums.map((album: any) => {
+          const rawCover = album.cover_url || album.cover;
+          const cover =
+            rawCover && typeof rawCover === "string" ? rawCover : null;
+
+          return {
+            id: album.id,
+            title: album.title,
+            year: album.year,
+            artist: data.name ?? "",
+            cover,
+          } as Album;
+        });
 
         setArtist(data);
       } catch (err: any) {
         console.error("Artist fetch error:", err);
-        // Friendly error message
         setError(err?.response?.data?.error || err?.message || "Failed to load artist");
         setArtist(null);
       } finally {
@@ -82,7 +93,6 @@ export default function ArtistPage() {
     };
   }, [id]);
 
-  // Defensive guards so rendering never crashes
   if (loading) return <div className="p-8 text-center text-gray-400">Loading artist...</div>;
   if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
   if (!artist || !artist.name) return <div className="p-8 text-center text-gray-400">No artist found</div>;
@@ -94,9 +104,13 @@ export default function ArtistPage() {
         {/* Avatar */}
         <div className="w-40 h-40 rounded-full bg-gradient-to-br from-indigo-500/40 to-pink-400/40 flex items-center justify-center text-white font-bold text-2xl border border-white/10 overflow-hidden">
           {artist.avatar ? (
-            <img src={artist.avatar} alt={artist.name || "Artist"} className="w-full h-full object-cover rounded-full" />
+            <img
+              src={artist.avatar}
+              alt={artist.name || "Artist"}
+              className="w-full h-full object-cover rounded-full"
+            />
           ) : (
-            (artist.name?.charAt(0) || "?")
+            artist.name?.charAt(0) || "?"
           )}
         </div>
 
@@ -117,27 +131,12 @@ export default function ArtistPage() {
         <h2 className="text-xl font-semibold">Albums</h2>
         <div className="flex gap-6 overflow-x-auto pb-2">
           {artist.albums && artist.albums.length > 0 ? (
-            artist.albums.map((album) => {
-              // normalize album cover like we did for avatar
-              const cover =
-                (album as any).cover && typeof (album as any).cover === "string" && !/^https?:\/\//.test((album as any).cover)
-                  ? `${BACKEND_URL}${(album as any).cover}`
-                  : (album as any).cover || null;
-
-              return (
-                <div key={album.id} className="min-w-[160px] flex-shrink-0 text-center">
-                  <AlbumCard
-                    album={{
-                      id: album.id,
-                      title: album.title,
-                      artist: artist?.name ?? "",
-                      cover, // ✅ now AlbumCard can display it
-                    }}
-                  />
-                  <p className="text-sm text-gray-400 mt-1">{album.year}</p>
-                </div>
-              );
-            })
+            artist.albums.map((album) => (
+              <div key={album.id} className="min-w-[160px] flex-shrink-0 text-center">
+                <AlbumCard album={album} />
+                <p className="text-sm text-gray-400 mt-1">{album.year}</p>
+              </div>
+            ))
           ) : (
             <p className="text-gray-400">No albums available</p>
           )}
