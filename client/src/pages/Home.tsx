@@ -12,7 +12,7 @@ type Artist = {
 type Album = {
   id: number;
   title: string;
-  artist_name: string;
+  artist_name: string; // make sure backend sends this!
   cover_url?: string;
   created_at: string;
 };
@@ -85,7 +85,7 @@ export default function Home() {
                   album={{
                     id: al.id,
                     title: al.title,
-                    artist: al.artist_name, // map backend field
+                    artist: al.artist_name, // ✅ Pass artist name correctly
                     cover: al.cover_url,
                   }}
                 />

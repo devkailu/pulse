@@ -1,6 +1,7 @@
 import express, { Request, Response } from "express";
 import multer from "multer";
 import db, { query } from "../db.js"; // or { db } if you export that way
+import { RowDataPacket, OkPacket } from "mysql2";
 
 const router = express.Router();
 const upload = multer({ dest: "uploads/" });
@@ -136,6 +137,40 @@ router.get("/albums", async (req: Request, res: Response) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "DB error fetching albums" });
+  }
+});
+
+// -------------------- Get single artist (for profile/dashboard) --------------------
+router.get("/:id", async (req: Request, res: Response) => {
+  const artistId = req.params.id;
+  try {
+    // Artist basic info
+    const [artistRows] = await db.query<RowDataPacket[]>(
+      "SELECT id, name, bio, follower_count AS followers, avatar_url AS avatar FROM artists WHERE id = ?",
+      [artistId]
+    );
+    if (!artistRows.length) return res.status(404).json({ error: "Artist not found" });
+    const artist = artistRows[0];
+
+    // Albums
+    const [albums] = await db.query<RowDataPacket[]>(
+      "SELECT id, title, YEAR(release_date) AS year, cover_url FROM albums WHERE artist_id = ? ORDER BY release_date DESC",
+      [artistId]
+    );
+
+    // Singles (songs with album_id IS NULL)
+    const [singles] = await db.query<RowDataPacket[]>(
+      `SELECT id, title, duration_text AS duration, release_date
+       FROM songs
+       WHERE primary_artist_id = ? AND album_id IS NULL
+       ORDER BY release_date DESC`,
+      [artistId]
+    );
+
+    res.json({ ...artist, albums, singles });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
