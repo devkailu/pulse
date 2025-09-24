@@ -159,4 +159,62 @@ router.get("/albums", async (req: Request, res: Response) => {
   }
 });
 
+// Check if current user follows this artist
+router.get("/:id/following", async (req: Request, res: Response) => {
+  const artistId = Number(req.params.id);
+  const userId = Number(req.query.user_id); // ensure number
+
+  if (!userId) return res.json({ following: false });
+
+  try {
+    const rows = await query(
+      `SELECT * FROM follows WHERE user_id = ? AND artist_id = ?`,
+      [userId, artistId]
+    );
+    res.json({ following: rows.length > 0 });
+  } catch (err) {
+    console.error("Following check error:", err);
+    res.status(500).json({ following: false });
+  }
+});
+
+// Follow artist
+router.post("/:id/follow", async (req: Request, res: Response) => {
+  const artistId = Number(req.params.id);
+  const userId = Number(req.body.user_id); // ensure number
+
+  if (!userId) return res.status(401).json({ error: "Not logged in" });
+
+  try {
+    await query(
+      `INSERT IGNORE INTO follows (user_id, artist_id) VALUES (?, ?)`,
+      [userId, artistId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Follow error:", err);
+    res.status(500).json({ error: "Failed to follow artist" });
+  }
+});
+
+// Unfollow artist
+router.delete("/:id/follow", async (req: Request, res: Response) => {
+  const artistId = Number(req.params.id);
+  const userId = Number(req.body.user_id); // ensure number
+
+  if (!userId) return res.status(401).json({ error: "Not logged in" });
+
+  try {
+    await query(
+      `DELETE FROM follows WHERE user_id = ? AND artist_id = ?`,
+      [userId, artistId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Unfollow error:", err);
+    res.status(500).json({ error: "Failed to unfollow artist" });
+  }
+});
+
+
 export default router;
