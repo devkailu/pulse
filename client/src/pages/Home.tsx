@@ -13,19 +13,37 @@ type Artist = {
 type Album = {
   id: number;
   title: string;
-  artist_name: string; // match backend
-  cover_url?: string | null;
+  artist_name: string;
+  cover_url?: string;
   created_at: string;
 };
 
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+
 export default function Home() {
   const user = useAuthStore((s) => s.user);
-  const displayName = user?.display_name || user?.username || "Guest";
+  const [localUser, setLocalUser] = useState(user);
+  const displayName = localUser?.display_name || localUser?.username || "Guest";
 
   const [artists, setArtists] = useState<Artist[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Fetch user if not already in store
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await api.get("/api/auth/me");
+        setLocalUser(res.data.user);
+        useAuthStore.setState({ user: res.data.user }); // update global store
+      } catch (err) {
+        console.error("Error fetching user:", err);
+      }
+    };
+    if (!user) fetchUser();
+  }, [user]);
+
+  // Fetch artists and albums
   useEffect(() => {
     const fetchData = async () => {
       try {

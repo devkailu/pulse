@@ -32,11 +32,19 @@ export interface UserResponse {
   token: string;
 }
 
-export const signupUser = (payload: SignupUserPayload | FormData): Promise<UserResponse> =>
-  api.post('/api/auth/signup-user', payload, { headers: { 'Content-Type': 'multipart/form-data' } }).then(res => res.data);
+export const signupUser = (payload: SignupUserPayload | FormData): Promise<UserResponse> => {
+  if (payload instanceof FormData) {
+    return api.post('/api/auth/signup-user', payload).then(res => res.data);
+  }
+  return api.post('/api/auth/signup-user', payload).then(res => res.data);
+};
 
-export const signupArtist = (payload: SignupArtistPayload | FormData): Promise<UserResponse> =>
-  api.post('/api/auth/signup-artist', payload, { headers: { 'Content-Type': 'multipart/form-data' } }).then(res => res.data);
+export const signupArtist = (payload: SignupArtistPayload | FormData): Promise<UserResponse> => {
+  if (payload instanceof FormData) {
+    return api.post('/api/auth/signup-artist', payload).then(res => res.data);
+  }
+  return api.post('/api/auth/signup-artist', payload).then(res => res.data);
+};
 
 export const login = (payload: LoginPayload): Promise<UserResponse> =>
   api.post('/api/auth/login', payload).then(res => res.data);

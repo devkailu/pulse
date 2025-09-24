@@ -28,6 +28,7 @@ app.use(cors({ origin: CLIENT, credentials: true }));
 // Serve uploaded files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+
 app.use("/api/artists", artistRoutes);
 app.use("/api/albums", albumRoutes);
 
