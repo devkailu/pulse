@@ -7,7 +7,8 @@ type Track = {
   title: string;
   artist: string;
   duration: string;
-  releaseDate?: string; // 👈 new optional field
+  releaseDate?: string; // optional
+  index?: number; // optional: position in the displayed list
 };
 
 type Playlist = {
@@ -51,7 +52,7 @@ export default function TrackCard({ track }: { track: Track }) {
     >
       {/* Track index or play icon */}
       <div className="w-8 text-gray-400">
-        <span className="group-hover:hidden">{track.id}</span>
+        <span className="group-hover:hidden">{track.index ?? track.id}</span>
         <Play size={18} className="hidden group-hover:block cursor-pointer" />
       </div>
 

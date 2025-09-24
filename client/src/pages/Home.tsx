@@ -7,17 +7,16 @@ import { api } from "../services/api";
 type Artist = {
   id: number;
   name: string;
+  avatar?: string | null; // match backend
 };
 
 type Album = {
   id: number;
   title: string;
-  artist_name: string; // make sure backend sends this!
-  cover_url?: string;
+  artist_name: string; // match backend
+  cover_url?: string | null;
   created_at: string;
 };
-
-const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
 export default function Home() {
   const user = useAuthStore((s) => s.user);
@@ -34,7 +33,15 @@ export default function Home() {
           api.get<Artist[]>("/api/artists/artists?sort=alphabetical"),
           api.get<Album[]>("/api/albums?sort=recent"),
         ]);
-        setArtists(artistsRes.data || []);
+
+        // Backend might send `avatar` field
+        const artistsWithAvatar = (artistsRes.data || []).map((a) => ({
+          id: a.id,
+          name: a.name,
+          avatar: (a as any).avatar || null, // normalize
+        }));
+
+        setArtists(artistsWithAvatar);
         setAlbums(albumsRes.data || []);
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -85,8 +92,8 @@ export default function Home() {
                   album={{
                     id: al.id,
                     title: al.title,
-                    artist: al.artist_name, // ✅ Pass artist name correctly
-                    cover: al.cover_url,
+                    artist: al.artist_name,
+                    cover: al.cover_url || undefined,
                   }}
                 />
               ))}
