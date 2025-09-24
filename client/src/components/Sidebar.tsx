@@ -1,11 +1,14 @@
+// client/src/components/Sidebar.tsx
 import React, { useState } from "react";
 import { Plus, LogOut } from "lucide-react";
 import { useAuthStore } from "../state/useAuthStore";
 import { useNavigate } from "react-router-dom";
+import { getAvatarUrl } from "../utils/avatar";
 
 type Artist = { id: number; name: string };
 type Playlist = { id: number; name: string };
 
+// Dummy data
 const dummyFollowing: Artist[] = [
   { id: 1, name: "The Weeknd" },
   { id: 2, name: "Dua Lipa" },
@@ -31,6 +34,9 @@ export default function Sidebar() {
     setNewName("");
   };
 
+  console.log("[Sidebar] user from store:", user); // 🔹 DEBUG
+  console.log("[Sidebar] avatar_url:", user?.avatar_url); // 🔹 DEBUG
+
   const handleSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && newName.trim() !== "") {
       setPlaylists((prev) => [
@@ -47,28 +53,31 @@ export default function Sidebar() {
 
   const doLogout = () => {
     logout();
-    navigate("/login/user"); // back to login
+    navigate("/login/user");
   };
 
   return (
     <aside className="w-72 h-[calc(100vh-80px)] text-white flex flex-col gap-6 glass-dark px-8 py-6">
       {/* Profile */}
       <div className="flex items-center gap-4">
-        <div className="w-14 h-14 rounded-full border border-white/8 bg-white/6 flex items-center justify-center overflow-hidden">
-          {user?.avatar ? (
-            <img
-              src={user.avatar}
-              alt="avatar"
-              className="w-full h-full object-cover rounded-full"
-            />
-          ) : (
-            <span className="text-2xl font-semibold">
-              {user?.username?.[0]?.toUpperCase() || "U"}
-            </span>
-          )}
-        </div>
+<div className="w-14 h-14 rounded-full border border-white/8 flex-shrink-0 overflow-hidden flex items-center justify-center">
+  {user?.avatar_url ? (
+    <img
+      src={getAvatarUrl(user.avatar_url)}
+      alt="avatar"
+      className="w-full h-full object-cover"
+    />
+  ) : (
+    <span className="text-2xl font-semibold">
+      {user?.username?.[0]?.toUpperCase() || "U"}
+    </span>
+  )}
+</div>
+
         <div>
-          <div className="font-semibold">{user?.display_name || user?.username || "Guest"}</div>
+          <div className="font-semibold">
+            {user?.display_name || user?.username || "Guest"}
+          </div>
           <div className="text-sm text-white/60">
             {user ? (user.role === "premium" ? "Premium Plan" : "Free Plan") : "Not logged in"}
           </div>
@@ -104,10 +113,7 @@ export default function Sidebar() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <div className="text-lg font-bold">Your Playlists</div>
-          <button
-            onClick={handleAdd}
-            className="p-1 rounded hover:bg-white/10 transition"
-          >
+          <button onClick={handleAdd} className="p-1 rounded hover:bg-white/10 transition">
             <Plus size={18} />
           </button>
         </div>
@@ -118,7 +124,6 @@ export default function Sidebar() {
             </li>
           ))}
 
-          {/* Input for new playlist */}
           {isAdding && (
             <li>
               <input

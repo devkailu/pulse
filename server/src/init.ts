@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import mysql from "mysql2/promise";
 import dotenv from "dotenv";
+import express from "express";
 dotenv.config();
 
 // ESM-safe __dirname
