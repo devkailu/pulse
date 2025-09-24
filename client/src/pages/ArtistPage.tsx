@@ -1,82 +1,110 @@
 // src/pages/ArtistPage.tsx
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
 import AlbumCard from "../components/AlbumCard";
 import TrackCard from "../components/TrackCard";
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { api } from "../services/api";
+import { BACKEND_URL } from "../constants"; // you already use this in ArtistCard
 
-interface Album {
+type Track = {
+  id: number;
+  title: string;
+  artist: string;
+  duration: string;
+  releaseDate?: string;
+  index?: number;
+};
+
+type Album = {
   id: number;
   title: string;
   year: number;
-  cover_url?: string | null;
-}
+  artist: string;
+  cover?: string; // ✅ new
+};
 
-interface Single {
+type Artist = {
   id: number;
-  title: string;
-  duration: string;
-  release_date: string;
-}
-
-interface Artist {
-  id: number;
-  name: string;
-  followers: number;
-  bio: string;
+  name?: string;
+  followers?: number;
+  bio?: string;
   avatar?: string | null;
-  albums: Album[];
-  singles: Single[];
-}
+  albums?: Album[];
+  singles?: Track[];
+};
 
 export default function ArtistPage() {
   const { id } = useParams<{ id: string }>();
   const [artist, setArtist] = useState<Artist | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchArtist = async () => {
+    if (!id) return;
+
+    let cancelled = false;
+    (async () => {
       try {
         setLoading(true);
-        const res = await fetch(`/api/artists/${id}`);
-        if (!res.ok) throw new Error("Failed to fetch artist");
-        const data: Artist = await res.json();
+        setError(null);
+
+        // IMPORTANT: use your `api` instance so request targets backend (http://localhost:4000)
+        const res = await api.get(`/api/artists/${id}`);
+        // quick debug log so you can inspect shape in console
+        console.log("GET /api/artists/:id response:", res.data);
+
+        if (cancelled) return;
+
+        const data = res.data as any;
+
+        // Ensure albums and singles are arrays
+        data.albums = Array.isArray(data.albums) ? data.albums : [];
+        data.singles = Array.isArray(data.singles) ? data.singles : [];
+
+        // Normalize avatar -> if it's a relative path, prefix with BACKEND_URL so browser requests backend
+        if (data.avatar && typeof data.avatar === "string" && !/^https?:\/\//.test(data.avatar)) {
+          data.avatar = `${BACKEND_URL}${data.avatar}`;
+        }
+
         setArtist(data);
       } catch (err: any) {
-        console.error(err);
-        setError(err.message || "Error fetching artist");
+        console.error("Artist fetch error:", err);
+        // Friendly error message
+        setError(err?.response?.data?.error || err?.message || "Failed to load artist");
+        setArtist(null);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    };
+    })();
 
-    fetchArtist();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
-  if (loading) return <div className="text-white text-center mt-20">Loading artist...</div>;
-  if (error) return <div className="text-red-500 text-center mt-20">{error}</div>;
-  if (!artist) return null;
+  // Defensive guards so rendering never crashes
+  if (loading) return <div className="p-8 text-center text-gray-400">Loading artist...</div>;
+  if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
+  if (!artist || !artist.name) return <div className="p-8 text-center text-gray-400">No artist found</div>;
 
   return (
     <div className="space-y-10">
       {/* Header */}
       <header className="glass p-8 flex items-center gap-10">
         {/* Avatar */}
-        <div className="w-40 h-40 rounded-full bg-gradient-to-br from-indigo-500/40 to-pink-400/40 flex items-center justify-center text-white font-bold text-2xl border border-white/10">
+        <div className="w-40 h-40 rounded-full bg-gradient-to-br from-indigo-500/40 to-pink-400/40 flex items-center justify-center text-white font-bold text-2xl border border-white/10 overflow-hidden">
           {artist.avatar ? (
-            <img src={artist.avatar} alt={artist.name} className="w-full h-full rounded-full object-cover" />
+            <img src={artist.avatar} alt={artist.name || "Artist"} className="w-full h-full object-cover rounded-full" />
           ) : (
-            artist.name.charAt(0)
+            (artist.name?.charAt(0) || "?")
           )}
         </div>
 
         {/* Info */}
         <div className="flex-1 space-y-3">
           <h1 className="text-4xl font-bold">{artist.name}</h1>
-          <p className="text-gray-300">
-            {artist.followers.toLocaleString()} followers
-          </p>
-          <p className="text-gray-400 max-w-2xl">{artist.bio}</p>
+          <p className="text-gray-300">{(artist.followers ?? 0).toLocaleString()} followers</p>
+          <p className="text-gray-400 max-w-2xl">{artist.bio || "No bio available."}</p>
 
           <button className="mt-3 px-5 py-2 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 transition">
             Follow
@@ -84,22 +112,39 @@ export default function ArtistPage() {
         </div>
       </header>
 
-      {/* Albums first */}
+      {/* Albums */}
       <section className="glass p-6 space-y-4">
         <h2 className="text-xl font-semibold">Albums</h2>
         <div className="flex gap-6 overflow-x-auto pb-2">
-          {artist.albums.map((album) => (
-            <div key={album.id} className="min-w-[160px] flex-shrink-0 text-center">
-              <AlbumCard
-                album={{ id: album.id, title: album.title, artist: artist.name }}
-              />
-              <p className="text-sm text-gray-400 mt-1">{album.year}</p>
-            </div>
-          ))}
+          {artist.albums && artist.albums.length > 0 ? (
+            artist.albums.map((album) => {
+              // normalize album cover like we did for avatar
+              const cover =
+                (album as any).cover && typeof (album as any).cover === "string" && !/^https?:\/\//.test((album as any).cover)
+                  ? `${BACKEND_URL}${(album as any).cover}`
+                  : (album as any).cover || null;
+
+              return (
+                <div key={album.id} className="min-w-[160px] flex-shrink-0 text-center">
+                  <AlbumCard
+                    album={{
+                      id: album.id,
+                      title: album.title,
+                      artist: artist?.name ?? "",
+                      cover, // ✅ now AlbumCard can display it
+                    }}
+                  />
+                  <p className="text-sm text-gray-400 mt-1">{album.year}</p>
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-gray-400">No albums available</p>
+          )}
         </div>
       </section>
 
-      {/* Singles below */}
+      {/* Singles */}
       <section className="glass p-6 space-y-4">
         <h2 className="text-xl font-semibold">Singles</h2>
 
@@ -112,9 +157,13 @@ export default function ArtistPage() {
         </div>
 
         <div className="space-y-2 max-h-[40vh] overflow-y-auto">
-          {artist.singles.map((track, idx) => (
-            <TrackCard key={track.id} track={{ ...track, artist: artist.name, index: idx + 1 }} />
-          ))}
+          {artist.singles && artist.singles.length > 0 ? (
+            artist.singles.map((track, idx) => (
+              <TrackCard key={track.id} track={{ ...track, artist: artist?.name ?? "", index: idx + 1 }} />
+            ))
+          ) : (
+            <p className="text-gray-400">No singles available</p>
+          )}
         </div>
       </section>
     </div>

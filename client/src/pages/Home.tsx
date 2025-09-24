@@ -7,6 +7,7 @@ import { api } from "../services/api";
 type Artist = {
   id: number;
   name: string;
+  avatar?: string | null; // match backend
 };
 
 type Album = {
@@ -50,7 +51,15 @@ export default function Home() {
           api.get<Artist[]>("/api/artists/artists?sort=alphabetical"),
           api.get<Album[]>("/api/albums?sort=recent"),
         ]);
-        setArtists(artistsRes.data || []);
+
+        // Backend might send `avatar` field
+        const artistsWithAvatar = (artistsRes.data || []).map((a) => ({
+          id: a.id,
+          name: a.name,
+          avatar: (a as any).avatar || null, // normalize
+        }));
+
+        setArtists(artistsWithAvatar);
         setAlbums(albumsRes.data || []);
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -102,7 +111,7 @@ export default function Home() {
                     id: al.id,
                     title: al.title,
                     artist: al.artist_name,
-                    cover: al.cover_url,
+                    cover: al.cover_url || undefined,
                   }}
                 />
               ))}

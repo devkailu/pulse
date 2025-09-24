@@ -1,16 +1,19 @@
+// src/routes/artistRoutes.ts
 import express, { Request, Response } from "express";
 import multer from "multer";
-import db, { query } from "../db.js"; // or { db } if you export that way
-import { RowDataPacket, OkPacket } from "mysql2";
+import db, { query } from "../db.js"; // your db helper
+import { RowDataPacket } from "mysql2";
 
 const router = express.Router();
 const upload = multer({ dest: "uploads/" });
 
-// -------------------- Get all artists (for discovery) --------------------
+// -------------------- Get all artists --------------------
 router.get("/artists", async (req: Request, res: Response) => {
   try {
     const sort = req.query.sort === "alphabetical" ? "ORDER BY name ASC" : "";
-    const artists = await query(`SELECT id, name, avatar_url FROM artists ${sort}`);
+    const artists = await query<RowDataPacket[]>(
+      `SELECT id, name, avatar_url AS avatar FROM artists ${sort}`
+    );
     res.json(artists);
   } catch (err) {
     console.error(err);
@@ -18,36 +21,53 @@ router.get("/artists", async (req: Request, res: Response) => {
   }
 });
 
-// -------------------- Get single artist (for profile/dashboard) --------------------
+// -------------------- Get single artist --------------------
 router.get("/:id", async (req: Request, res: Response) => {
   const artistId = req.params.id;
   try {
-    const [artist] = await query(
-      `SELECT id, user_id, name, bio, country, start_year, avatar_url, follower_count, created_at
+    // Artist info
+    const artistRows = await query(
+      `SELECT id, name, bio, follower_count AS followers, avatar_url AS avatar
        FROM artists
        WHERE id = ?`,
       [artistId]
     );
 
-    if (!artist) return res.status(404).json({ message: "Artist not found" });
+    if (!artistRows.length) return res.status(404).json({ error: "Artist not found" });
+    const artist = artistRows[0];
 
-    // Fetch albums for this artist
+    // Albums
     const albums = await query(
-      `SELECT id, title, cover_url, created_at
+      `SELECT id, title, YEAR(release_date) AS year, cover_url
        FROM albums
        WHERE artist_id = ?
+       ORDER BY release_date DESC`,
+      [artistId]
+    );
+
+    // Singles (songs not in albums)
+    const singles = await query(
+      `SELECT id, title, duration_text AS duration, created_at AS release_date
+       FROM songs
+       WHERE primary_artist_id = ? AND album_id IS NULL
        ORDER BY created_at DESC`,
       [artistId]
     );
 
-    res.json({ ...artist, albums });
+    // Always send arrays (even if empty)
+    res.json({
+      ...artist,
+      albums: albums || [],
+      singles: singles || [],
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "DB error fetching artist" });
+    console.error("Artist fetch error:", err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
-// Release single
+
+// -------------------- Release single --------------------
 router.post("/singles", upload.single("audio"), async (req: Request, res: Response) => {
   try {
     const { title, primary_artist_id, collaborators } = req.body;
@@ -77,7 +97,7 @@ router.post("/singles", upload.single("audio"), async (req: Request, res: Respon
   }
 });
 
-// Release album
+// -------------------- Release album --------------------
 router.post("/albums", upload.single("cover"), async (req: Request, res: Response) => {
   const conn = await db.getConnection();
   try {
@@ -122,55 +142,20 @@ router.post("/albums", upload.single("cover"), async (req: Request, res: Respons
   }
 });
 
-
-// Get all albums (recent first optional)
+// -------------------- Get all albums --------------------
 router.get("/albums", async (req: Request, res: Response) => {
   try {
     const sort = req.query.sort === "recent" ? "ORDER BY created_at DESC" : "";
-    const [rows] = await db.query(`
-      SELECT a.id, a.title, ar.name AS artist_name, a.cover_url, a.created_at
-      FROM albums a
-      JOIN artists ar ON a.artist_id = ar.id
-      ${sort}
-    `);
+    const [rows] = await db.query<RowDataPacket[]>(
+      `SELECT a.id, a.title, ar.name AS artist_name, a.cover_url, a.created_at
+       FROM albums a
+       JOIN artists ar ON a.artist_id = ar.id
+       ${sort}`
+    );
     res.json(rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "DB error fetching albums" });
-  }
-});
-
-// -------------------- Get single artist (for profile/dashboard) --------------------
-router.get("/:id", async (req: Request, res: Response) => {
-  const artistId = req.params.id;
-  try {
-    // Artist basic info
-    const [artistRows] = await db.query<RowDataPacket[]>(
-      "SELECT id, name, bio, follower_count AS followers, avatar_url AS avatar FROM artists WHERE id = ?",
-      [artistId]
-    );
-    if (!artistRows.length) return res.status(404).json({ error: "Artist not found" });
-    const artist = artistRows[0];
-
-    // Albums
-    const [albums] = await db.query<RowDataPacket[]>(
-      "SELECT id, title, YEAR(release_date) AS year, cover_url FROM albums WHERE artist_id = ? ORDER BY release_date DESC",
-      [artistId]
-    );
-
-    // Singles (songs with album_id IS NULL)
-    const [singles] = await db.query<RowDataPacket[]>(
-      `SELECT id, title, duration_text AS duration, release_date
-       FROM songs
-       WHERE primary_artist_id = ? AND album_id IS NULL
-       ORDER BY release_date DESC`,
-      [artistId]
-    );
-
-    res.json({ ...artist, albums, singles });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
   }
 });
 
