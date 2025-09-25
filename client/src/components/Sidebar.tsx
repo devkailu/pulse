@@ -4,6 +4,7 @@ import { useAuthStore } from "../state/useAuthStore";
 import { useNavigate } from "react-router-dom";
 import { getAvatarUrl } from "../utils/avatar";
 import { api } from "../services/api";
+import { Link } from "react-router-dom";
 
 type Playlist = { id: number; name: string; description?: string; created_at?: string };
 
@@ -140,28 +141,32 @@ export default function Sidebar() {
           </button>
         </div>
 
-        <ul className="space-y-2">
+        <ul className="space-y-0">
           {loading ? (
             <div className="text-sm text-white/60">Loading playlists...</div>
           ) : playlists.length === 0 ? (
             <div className="text-sm text-white/60">No playlists</div>
           ) : (
             playlists.map((pl) => (
-              <li
-                key={pl.id}
-                className="group flex items-center justify-between rounded px-2 py-1 hover:brightness-105 transition"
+            <li
+              key={pl.id}
+              className="group flex items-center justify-between rounded px-3 py-2 hover:bg-white/20 transition"
+            >
+              <Link
+                to={`/playlists/${pl.id}`}
+                className="truncate cursor-pointer flex-1"
+                title={pl.name}
               >
-                <div className="truncate cursor-pointer" title={pl.name}>
-                  {pl.name}
-                </div>
-                <button
-                  onClick={() => doDelete(pl.id)}
-                  className="opacity-0 group-hover:opacity-100 transition p-1 rounded hover:bg-white/10"
-                  title="Delete playlist"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </li>
+                {pl.name}
+              </Link>
+              <button
+                onClick={() => doDelete(pl.id)}
+                className="opacity-0 group-hover:opacity-100 transition p-1 rounded hover:bg-white/10"
+                title="Delete playlist"
+              >
+                <Trash2 size={14} />
+              </button>
+            </li>
             ))
           )}
 

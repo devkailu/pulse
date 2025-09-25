@@ -110,4 +110,64 @@ router.delete("/:id", async (req: Request, res: Response) => {
   }
 });
 
+// ---------------- GET single playlist with songs ----------------
+router.get("/:id", async (req, res) => {
+  const playlistId = Number(req.params.id);
+  if (!playlistId) return res.status(400).json({ error: "Invalid playlist ID" });
+
+  try {
+    // Playlist info
+    const playlistRows = await query(
+      `SELECT p.id, p.name, p.description, p.is_public, p.created_at,
+              u.id AS owner_id, u.display_name AS owner_name
+       FROM playlists p
+       JOIN users u ON p.user_id = u.id
+       WHERE p.id = ?`,
+      [playlistId]
+    );
+
+    if (!playlistRows.length)
+      return res.status(404).json({ error: "Playlist not found" });
+
+    const playlist = playlistRows[0];
+
+    // Playlist songs + artists (similar to album query)
+    const songs = await query(
+      `SELECT 
+          s.id,
+          s.title,
+          s.duration_text AS duration,
+          s.audio_url,
+          ps.position,
+          ps.date_added,
+          GROUP_CONCAT(ar.name ORDER BY sa.role SEPARATOR ', ') AS artists
+       FROM playlist_songs ps
+       JOIN songs s ON ps.song_id = s.id
+       LEFT JOIN song_artists sa ON sa.song_id = s.id
+       LEFT JOIN artists ar ON ar.id = sa.artist_id
+       WHERE ps.playlist_id = ?
+       GROUP BY s.id, ps.position, ps.date_added
+       ORDER BY ps.position ASC, ps.date_added ASC`,
+      [playlistId]
+    );
+
+    // Format each track's artists as array
+    const formattedSongs = songs.map((s: any) => ({
+      id: s.id,
+      title: s.title,
+      duration: s.duration,
+      audio_url: s.audio_url,
+      position: s.position,
+      date_added: s.date_added,
+      artists: s.artists ? s.artists.split(", ") : [],
+    }));
+
+    res.json({ ...playlist, tracks: formattedSongs });
+  } catch (err) {
+    console.error("Fetch single playlist error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
 export default router;
