@@ -13,6 +13,16 @@ export const api = axios.create({
   },
 });
 
+// 🔹 Attach token from localStorage to every request
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("pulse_token");
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Optional: interceptors to handle errors globally
 api.interceptors.response.use(
   (response) => response,

@@ -1,4 +1,3 @@
-// server/src/index.ts
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -14,6 +13,7 @@ import multer from "multer";
 import { query } from "./db";
 import artistRoutes from "./routes/artistRoutes";
 import albumRoutes from "./routes/albumRoutes";
+import playlistRoutes from "./routes/playlistRoutes";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,29 +23,50 @@ app.use(express.json());
 app.use(cookieParser());
 
 const CLIENT = process.env.CLIENT_ORIGIN || "http://localhost:5173";
-app.use(cors({ origin: CLIENT, credentials: true }));
 
-// Serve uploaded files
+app.use(
+  cors({
+    origin: CLIENT,
+    credentials: true,
+    methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  })
+);
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", CLIENT);
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  if (req.method === "OPTIONS") return res.sendStatus(200);
+  next();
+});
+
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
-
-app.use("/api/artists", artistRoutes);
-app.use("/api/albums", albumRoutes);
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, path.join(__dirname, "uploads")),
+  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
+});
+const upload = multer({ storage });
 
 const PORT = Number(process.env.PORT || 4000);
 const JWT_SECRET = process.env.JWT_SECRET || "devsecret";
 
-// -------------------- Multer Setup --------------------
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, "uploads")),
-  filename: (req, file, cb) => {
-    const uniqueName = `${Date.now()}-${file.originalname}`;
-    cb(null, uniqueName);
-  },
-});
-const upload = multer({ storage });
+// -------------------- Routes --------------------
+app.use("/api/artists", artistRoutes);
+app.use("/api/albums", albumRoutes);
+app.use("/api/playlists", playlistRoutes);
 
-// -------------------- Types --------------------
+// -------------------- Helpers --------------------
+async function findUserByUsernameOrEmail(identifier: string) {
+  const rows = await query(
+    "SELECT * FROM users WHERE username = ? OR email = ?",
+    [identifier, identifier]
+  );
+  return rows[0];
+}
+
+// -------------------- Auth Routes --------------------
 interface SignupUserPayload {
   username: string;
   email: string;
@@ -66,18 +87,13 @@ interface SignupArtistPayload {
   avatar_url?: string;
 }
 
-// -------------------- Helpers --------------------
-async function findUserByUsernameOrEmail(identifier: string) {
-  const rows = await query("SELECT * FROM users WHERE username = ? OR email = ?", [identifier, identifier]);
-  return rows[0];
-}
-
-// -------------------- Signup User --------------------
+// Signup User
 app.post("/api/auth/signup-user", upload.single("avatar"), async (req: Request, res: Response) => {
   const { username, email, password, display_name, subscription_id } = req.body;
   const avatar_url = req.file ? `/uploads/${req.file.filename}` : null;
 
-  if (!username || !email || !password) return res.status(400).json({ message: "Missing fields" });
+  if (!username || !email || !password)
+    return res.status(400).json({ message: "Missing fields" });
 
   try {
     const existing = await query("SELECT id FROM users WHERE username = ? OR email = ?", [username, email]);
@@ -104,12 +120,13 @@ app.post("/api/auth/signup-user", upload.single("avatar"), async (req: Request, 
   }
 });
 
-// -------------------- Signup Artist --------------------
+// Signup Artist
 app.post("/api/auth/signup-artist", upload.single("avatar"), async (req: Request, res: Response) => {
   const { username, email, password, stage_name, bio, country, start_year } = req.body;
   const avatar_url = req.file ? `/uploads/${req.file.filename}` : null;
 
-  if (!username || !email || !password || !stage_name) return res.status(400).json({ message: "Missing fields" });
+  if (!username || !email || !password || !stage_name)
+    return res.status(400).json({ message: "Missing fields" });
 
   try {
     const existing = await query("SELECT id FROM users WHERE username = ? OR email = ?", [username, email]);
@@ -117,7 +134,6 @@ app.post("/api/auth/signup-artist", upload.single("avatar"), async (req: Request
 
     const password_hash = await bcrypt.hash(password, 12);
 
-    // Insert user with display_name = stage_name
     await query(
       `INSERT INTO users (username, email, password_hash, display_name)
        VALUES (?, ?, ?, ?)`,
@@ -126,7 +142,6 @@ app.post("/api/auth/signup-artist", upload.single("avatar"), async (req: Request
 
     const user = await findUserByUsernameOrEmail(username);
 
-    // Insert into artists table with avatar
     const result: any = await query(
       `INSERT INTO artists (user_id, name, bio, country, start_year, avatar_url)
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -148,7 +163,7 @@ app.post("/api/auth/signup-artist", upload.single("avatar"), async (req: Request
   }
 });
 
-// -------------------- Login --------------------
+// Login
 interface LoginPayload {
   usernameOrEmail: string;
   password: string;
@@ -183,7 +198,7 @@ app.post("/api/auth/login", async (req: Request<{}, {}, LoginPayload>, res: Resp
   }
 });
 
-// -------------------- Me --------------------
+// Me
 app.get("/api/auth/me", async (req: Request, res: Response) => {
   const token =
     req.cookies.token || (req.headers.authorization && req.headers.authorization.split(" ")[1]);
@@ -202,10 +217,12 @@ app.get("/api/auth/me", async (req: Request, res: Response) => {
   }
 });
 
-// -------------------- Logout --------------------
+// Logout
 app.post("/api/auth/logout", (req: Request, res: Response) => {
   res.clearCookie("token");
   res.json({ ok: true });
 });
 
+
+// -------------------- Start server --------------------
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
