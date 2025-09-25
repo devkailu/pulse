@@ -20,8 +20,16 @@ const storedToken = localStorage.getItem("pulse_token");
 const storedUser = localStorage.getItem("pulse_user");
 
 export const useAuthStore = create<AuthState>((set) => ({
-  user: storedUser ? JSON.parse(storedUser) : null,
-  token: storedToken || null,
+  // ⚡ Only change: ensure avatar_url is at least null
+  user: storedUser
+    ? (() => {
+        const u = JSON.parse(storedUser);
+        if (!("avatar_url" in u)) u.avatar_url = null; // safe fallback
+        return u;
+      })()
+    : null,
+
+  token: localStorage.getItem("pulse_token") || null,
 
   setUser: (user) => {
     console.log("[AuthStore] setUser called:", user); // 🔹 DEBUG
@@ -49,4 +57,3 @@ export const useAuthStore = create<AuthState>((set) => ({
 if (typeof window !== "undefined") {
   (window as any).authStore = useAuthStore.getState();
 }
-

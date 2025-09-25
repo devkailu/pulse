@@ -14,6 +14,7 @@ import { query } from "./db";
 import artistRoutes from "./routes/artistRoutes";
 import albumRoutes from "./routes/albumRoutes";
 import playlistRoutes from "./routes/playlistRoutes";
+import userRoutes from "./routes/userRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,6 +57,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "devsecret";
 app.use("/api/artists", artistRoutes);
 app.use("/api/albums", albumRoutes);
 app.use("/api/playlists", playlistRoutes);
+app.use("/api/users", userRoutes);
 
 // -------------------- Helpers --------------------
 async function findUserByUsernameOrEmail(identifier: string) {
@@ -170,33 +172,39 @@ interface LoginPayload {
   accountType?: "user" | "artist";
 }
 
+// Login
 app.post("/api/auth/login", async (req: Request<{}, {}, LoginPayload>, res: Response) => {
-  const { usernameOrEmail, password, accountType } = req.body;
-  if (!usernameOrEmail || !password) return res.status(400).json({ message: "Missing fields" });
+  const { usernameOrEmail, password } = req.body;
+
+  if (!usernameOrEmail || !password) 
+    return res.status(400).json({ message: "Missing fields" });
 
   try {
     const user = await findUserByUsernameOrEmail(usernameOrEmail);
     if (!user) return res.status(400).json({ message: "User not found" });
 
-    if (accountType === "artist") {
-      const artist = await query("SELECT * FROM artists WHERE user_id = ?", [user.id]);
-      if (!artist.length) return res.status(403).json({ message: "Artist account not found" });
-    }
-
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ message: "Invalid password" });
 
-    const token = jwt.sign({ user_id: user.id, role: accountType || "user" }, JWT_SECRET, { expiresIn: "2h" });
+    // Determine avatar_url: check artist first, fallback to user
+    let avatar_url = user.avatar_url || null;
+    const artistRow = await query("SELECT avatar_url FROM artists WHERE user_id = ?", [user.id]);
+    if (artistRow.length && artistRow[0].avatar_url) avatar_url = artistRow[0].avatar_url;
+
+    // Sign JWT
+    const token = jwt.sign({ user_id: user.id, role: user.role || "user" }, JWT_SECRET, { expiresIn: "2h" });
     res.cookie("token", token, { httpOnly: true, sameSite: "lax" });
 
-    const safeUser = { ...user };
+    const safeUser = { ...user, avatar_url };
     delete safeUser.password_hash;
+
     res.json({ user: safeUser, token });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Login failed" });
   }
 });
+
 
 // Me
 app.get("/api/auth/me", async (req: Request, res: Response) => {
@@ -209,13 +217,23 @@ app.get("/api/auth/me", async (req: Request, res: Response) => {
     const user = (await query("SELECT * FROM users WHERE id = ?", [payload.user_id]))[0];
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const safeUser = { ...user };
+    let avatar_url = user.avatar_url || null;
+
+    // If artist, get artist avatar
+    const artistRow = await query("SELECT avatar_url FROM artists WHERE user_id = ?", [user.id]);
+    if (artistRow.length && artistRow[0].avatar_url) avatar_url = artistRow[0].avatar_url;
+
+    const safeUser = { ...user, avatar_url };
     delete safeUser.password_hash;
+
     res.json({ user: safeUser });
   } catch (err) {
-    return res.status(401).json({ message: "Invalid token" });
+    console.error(err);
+    res.status(401).json({ message: "Invalid token" });
   }
 });
+
+
 
 // Logout
 app.post("/api/auth/logout", (req: Request, res: Response) => {

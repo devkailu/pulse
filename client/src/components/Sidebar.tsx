@@ -1,28 +1,38 @@
+// src/components/Sidebar.tsx
 import React, { useEffect, useState } from "react";
 import { Plus, LogOut, Trash2 } from "lucide-react";
 import { useAuthStore } from "../state/useAuthStore";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { getAvatarUrl } from "../utils/avatar";
 import { api } from "../services/api";
-import { Link } from "react-router-dom";
 
-type Playlist = { id: number; name: string; description?: string; created_at?: string };
+type Playlist = {
+  id: number;
+  name: string;
+  description?: string;
+  created_at?: string;
+};
+
+type Artist = {
+  id: number;
+  name: string;
+  avatar?: string;
+};
 
 export default function Sidebar() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [loading, setLoading] = useState(true);
-
+  const [followingArtists, setFollowingArtists] = useState<Artist[]>([]);
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
 
-  /** Fetch playlists safely from backend */
+  /** Fetch playlists safely */
   const loadPlaylists = async () => {
     setLoading(true);
     try {
       const res = await api.get("/api/playlists");
-      // Ensure we always get an array
       const data = Array.isArray(res.data)
         ? res.data
         : Array.isArray(res.data?.playlists)
@@ -37,9 +47,23 @@ export default function Sidebar() {
     }
   };
 
+  /** Fetch artists the current user follows */
+  const loadFollowingArtists = async () => {
+    if (!user) return;
+    try {
+      const res = await api.get(`/api/users/${user.user_id}/following`);
+      const artists = Array.isArray(res.data) ? res.data : [];
+      setFollowingArtists(artists);
+    } catch (err) {
+      console.error("Failed to fetch following artists", err);
+      setFollowingArtists([]);
+    }
+  };
+
   useEffect(() => {
     loadPlaylists();
-  }, []);
+    loadFollowingArtists();
+  }, [user]);
 
   const handleAdd = () => {
     setIsAdding(true);
@@ -54,14 +78,9 @@ export default function Sidebar() {
 
       try {
         const res = await api.post("/api/playlists", { name });
-        console.log("DEBUG: POST /playlists response:", res.data);
-
-        // Safely add the new playlist to state
         const created = res.data?.playlist;
         if (created) setPlaylists((prev) => [created, ...prev]);
-        else {
-          alert("Failed to create playlist. Backend did not return playlist object.");
-        }
+        else alert("Failed to create playlist. Backend did not return playlist object.");
       } catch (err) {
         console.error("Failed to create playlist", err);
         alert("Failed to create playlist. Try again.");
@@ -97,7 +116,9 @@ export default function Sidebar() {
           {user?.avatar_url ? (
             <img src={getAvatarUrl(user.avatar_url)} alt="avatar" className="w-full h-full object-cover" />
           ) : (
-            <span className="text-2xl font-semibold">{user?.username?.[0]?.toUpperCase() || "U"}</span>
+            <span className="text-2xl font-semibold">
+              {user?.username?.[0]?.toUpperCase() || "U"}
+            </span>
           )}
         </div>
 
@@ -124,11 +145,29 @@ export default function Sidebar() {
       {/* Following */}
       <div>
         <div className="text-lg font-bold mb-3">Following</div>
-        <ul className="space-y-2 text-white/85">
-          <li className="hover:text-white cursor-pointer">The Weeknd</li>
-          <li className="hover:text-white cursor-pointer">Dua Lipa</li>
-          <li className="hover:text-white cursor-pointer">Drake</li>
-          <li className="hover:text-white cursor-pointer">Adele</li>
+        <ul className="space-y-0 pl-1 text-white/85">
+          {followingArtists.length === 0 ? (
+            <li className="text-sm text-white/60">Not following anyone yet</li>
+          ) : (
+            followingArtists.map((artist) => (
+              <li key={artist.id} className="hover:text-white p-2 cursor-pointer flex hover:bg-white/20 rounded-md items-center gap-2">
+                <Link to={`/artist/${artist.id}`} className="flex items-center gap-2">
+                  {artist.avatar ? (
+                    <img
+                      src={getAvatarUrl(artist.avatar)}
+                      alt={artist.name}
+                      className="w-6 h-6 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-gray-500 flex items-center justify-center text-xs font-semibold">
+                      {artist.name[0].toUpperCase()}
+                    </div>
+                  )}
+                  <span>{artist.name}</span>
+                </Link>
+              </li>
+            ))
+          )}
         </ul>
       </div>
 
@@ -148,25 +187,25 @@ export default function Sidebar() {
             <div className="text-sm text-white/60">No playlists</div>
           ) : (
             playlists.map((pl) => (
-            <li
-              key={pl.id}
-              className="group flex items-center justify-between rounded px-3 py-2 hover:bg-white/20 transition"
-            >
-              <Link
-                to={`/playlists/${pl.id}`}
-                className="truncate cursor-pointer flex-1"
-                title={pl.name}
+              <li
+                key={pl.id}
+                className="group flex items-center justify-between rounded px-3 py-2 hover:bg-white/20 transition"
               >
-                {pl.name}
-              </Link>
-              <button
-                onClick={() => doDelete(pl.id)}
-                className="opacity-0 group-hover:opacity-100 transition p-1 rounded hover:bg-white/10"
-                title="Delete playlist"
-              >
-                <Trash2 size={14} />
-              </button>
-            </li>
+                <Link
+                  to={`/playlists/${pl.id}`}
+                  className="truncate cursor-pointer flex-1"
+                  title={pl.name}
+                >
+                  {pl.name}
+                </Link>
+                <button
+                  onClick={() => doDelete(pl.id)}
+                  className="opacity-0 group-hover:opacity-100 transition p-1 rounded hover:bg-white/10"
+                  title="Delete playlist"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </li>
             ))
           )}
 
