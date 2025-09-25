@@ -21,6 +21,7 @@ export default function LoginUser() {
         username: data.user.username,
         role: data.user.role,
         display_name: data.user.display_name,
+        avatar_url: data.user.avatar_url, // Include avatar_url
       };
       setUser(user);
       setToken(data.token);

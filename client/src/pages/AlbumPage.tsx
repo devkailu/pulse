@@ -1,4 +1,5 @@
 import { useParams, Link } from "react-router-dom";
+import { getUploadUrl } from "../constants";
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import TrackCard from "../components/TrackCard";
@@ -67,7 +68,7 @@ export default function AlbumPage() {
         <div className="w-48 h-48 rounded-lg overflow-hidden bg-white/10 flex items-center justify-center">
           {album.cover_url ? (
             <img
-              src={`${import.meta.env.VITE_API_URL ?? "http://localhost:4000"}${album.cover_url}`}
+              src={getUploadUrl(album.cover_url)}
               alt={album.title}
               className="w-full h-full object-cover rounded-lg"
             />

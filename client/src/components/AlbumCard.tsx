@@ -1,4 +1,4 @@
-import { BACKEND_URL } from "../constants";
+import { getUploadUrl } from "../constants";
 import { useNavigate } from "react-router-dom";
 
 type Album = {
@@ -11,12 +11,7 @@ type Album = {
 export default function AlbumCard({ album }: { album: Album }) {
   const navigate = useNavigate();
 
-  const coverPath =
-    album.cover?.startsWith("/uploads/")
-      ? album.cover
-      : album.cover
-      ? `/uploads/${album.cover}`
-      : undefined;
+  const coverUrl = album.cover ? getUploadUrl(album.cover.startsWith("/") ? album.cover : `/uploads/${album.cover}`) : undefined;
 
   return (
     <div
@@ -24,9 +19,9 @@ export default function AlbumCard({ album }: { album: Album }) {
       className="w-40 flex flex-col gap-3 cursor-pointer transition duration-200 hover:brightness-125 hover:bg-white/10 p-2 rounded-xl"
     >
       <div className="w-36 h-36 rounded-xl border border-white/20 p-2 overflow-hidden flex items-center justify-center bg-white/10">
-        {coverPath ? (
+        {coverUrl ? (
           <img
-            src={`${BACKEND_URL}${coverPath}`}
+            src={coverUrl}
             alt={album.title}
             className="w-full h-full object-cover rounded-lg"
           />

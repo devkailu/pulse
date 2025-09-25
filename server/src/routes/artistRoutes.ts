@@ -1,11 +1,12 @@
 // src/routes/artistRoutes.ts
 import express, { Request, Response } from "express";
 import multer from "multer";
+import { upload } from "../upload";
 import db, { query } from "../db.js"; // your db helper
 import { RowDataPacket } from "mysql2";
+import { authenticate, AuthRequest } from "../middleware/auth";
 
 const router = express.Router();
-const upload = multer({ dest: "uploads/" });
 
 // -------------------- Get all artists --------------------
 router.get("/artists", async (req: Request, res: Response) => {
@@ -68,29 +69,25 @@ router.get("/:id", async (req: Request, res: Response) => {
 
 
 // -------------------- Release single --------------------
-router.post("/singles", upload.single("audio"), async (req: Request, res: Response) => {
+router.post("/singles", authenticate, upload.single("audio"), async (req: AuthRequest, res: Response) => {
   try {
-    const { title, primary_artist_id, collaborators } = req.body;
+    const { title } = req.body;
     const audioUrl = req.file ? `/uploads/${req.file.filename}` : "";
+
+    if (!title) return res.status(400).json({ error: "Missing title" });
+
+    const userId = req.user!.user_id;
+    const [artistRows]: any = await db.query("SELECT id FROM artists WHERE user_id = ?", [userId]);
+    if (!artistRows.length) return res.status(403).json({ error: "User is not an artist" });
+    const artistId = artistRows[0].id;
 
     const [songRes]: any = await db.query(
       `INSERT INTO songs (title, primary_artist_id, duration_seconds, duration_text, audio_url)
        VALUES (?, ?, 0, '', ?)`,
-      [title, primary_artist_id, audioUrl]
+      [title, artistId, audioUrl]
     );
-    const songId = songRes.insertId;
 
-    if (collaborators) {
-      const parsed = JSON.parse(collaborators);
-      for (const collab of parsed) {
-        await db.query(
-          `INSERT INTO song_artists (song_id, artist_id, role) VALUES (?, ?, ?)`,
-          [songId, collab.artist_id, collab.role]
-        );
-      }
-    }
-
-    res.json({ success: true, songId });
+    res.json({ success: true, songId: songRes.insertId });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "DB error releasing single" });
@@ -98,44 +95,60 @@ router.post("/singles", upload.single("audio"), async (req: Request, res: Respon
 });
 
 // -------------------- Release album --------------------
-router.post("/albums", upload.single("cover"), async (req: Request, res: Response) => {
+router.post("/albums", authenticate, upload.any(), async (req: AuthRequest, res: Response) => {
+  console.log("=== Album submission payload ===");
+  console.log("req.body:", req.body);
+  console.log("req.files:", req.files);
+
   const conn = await db.getConnection();
   try {
-    const { title, artist_id, tracks } = req.body;
-    const coverUrl = req.file ? `/uploads/${req.file.filename}` : null;
+    const { title, tracks } = req.body;
+    if (!title || !tracks) return res.status(400).json({ error: "Title or tracks missing" });
+
+    let parsedTracks;
+    try {
+      parsedTracks = JSON.parse(tracks);
+    } catch (e) {
+      console.error("Error parsing tracks JSON:", e);
+      return res.status(400).json({ error: "Invalid tracks format" });
+    }
+
+    const userId = req.user!.user_id;
+    const [artistRows]: any = await conn.query("SELECT id FROM artists WHERE user_id = ?", [userId]);
+    if (!artistRows.length) return res.status(403).json({ error: "User is not an artist" });
+    const artistId = artistRows[0].id;
+
+    const files = req.files as Express.Multer.File[];
+    console.log("Files array:", files);
+
+    const coverFile = files.find(f => f.fieldname === "cover");
+    const coverUrl = coverFile ? `/uploads/${coverFile.filename}` : null;
 
     await conn.beginTransaction();
 
     const [albumRes]: any = await conn.query(
       `INSERT INTO albums (artist_id, title, cover_url) VALUES (?, ?, ?)`,
-      [artist_id, title, coverUrl]
+      [artistId, title, coverUrl]
     );
     const albumId = albumRes.insertId;
 
-    const parsedTracks = JSON.parse(tracks);
     for (const [index, t] of parsedTracks.entries()) {
-      const [songRes]: any = await conn.query(
+      const fileFieldName = `track_${index}`;
+      const audioFile = files.find(f => f.fieldname === fileFieldName);
+      const audioUrl = audioFile ? `/uploads/${audioFile.filename}` : null;
+
+      await conn.query(
         `INSERT INTO songs (title, primary_artist_id, album_id, track_number, duration_seconds, duration_text, audio_url)
          VALUES (?, ?, ?, ?, 0, '', ?)`,
-        [t.title, artist_id, albumId, index + 1, t.audio_url]
+        [t.title, artistId, albumId, index + 1, audioUrl]
       );
-      const songId = songRes.insertId;
-
-      if (t.collaborators) {
-        for (const collab of t.collaborators) {
-          await conn.query(
-            `INSERT INTO song_artists (song_id, artist_id, role) VALUES (?, ?, ?)`,
-            [songId, collab.artist_id, collab.role]
-          );
-        }
-      }
     }
 
     await conn.commit();
     res.json({ success: true, albumId });
   } catch (err) {
     await conn.rollback();
-    console.error(err);
+    console.error("Album release error:", err);
     res.status(500).json({ error: "DB error releasing album" });
   } finally {
     conn.release();

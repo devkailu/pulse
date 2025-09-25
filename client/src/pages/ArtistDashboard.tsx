@@ -8,7 +8,6 @@ type Track = {
   id: number;
   title: string;
   file?: File;
-  collaborators: { artist_id: number; role: string }[];
 };
 
 export default function ArtistDashboard() {
@@ -17,19 +16,21 @@ export default function ArtistDashboard() {
   const [showSingleModal, setShowSingleModal] = useState(false);
   const [showAlbumModal, setShowAlbumModal] = useState(false);
 
-  const [single, setSingle] = useState<{ title: string; file?: File; collaborators: { artist_id: number; role: string }[] }>({
+  const [single, setSingle] = useState<{ title: string; file?: File }>({
     title: "",
-    collaborators: [],
   });
 
-  const [album, setAlbum] = useState<{ name: string; cover?: File; tracks: Track[] }>({
-    name: "",
-    tracks: [],
-  });
+  const [album, setAlbum] = useState<{ name: string; cover?: File; tracks: Track[] }>(
+    {
+      name: "",
+      tracks: [],
+    }
+  );
 
-  // Fetch all artists
+  // Fetch all artists (kept in case used elsewhere)
   useEffect(() => {
-    api.get("/api/artists/artists")
+    api
+      .get("/api/artists/artists")
       .then((res) => {
         if (Array.isArray(res.data)) setAllArtists(res.data);
         else setAllArtists([]);
@@ -41,80 +42,58 @@ export default function ArtistDashboard() {
   const addAlbumTrack = () => {
     setAlbum((prev) => ({
       ...prev,
-      tracks: [...prev.tracks, { id: Date.now(), title: "", collaborators: [] }],
+      tracks: [...prev.tracks, { id: Date.now(), title: "" }],
     }));
-  };
-
-  const addCollaborator = (trackId: number, artistId: number, role: string, isSingle = false) => {
-    if (isSingle) {
-      setSingle((prev) => ({
-        ...prev,
-        collaborators: [...prev.collaborators, { artist_id: artistId, role }],
-      }));
-    } else {
-      setAlbum((prev) => ({
-        ...prev,
-        tracks: prev.tracks.map((t) =>
-          t.id === trackId ? { ...t, collaborators: [...t.collaborators, { artist_id: artistId, role }] } : t
-        ),
-      }));
-    }
-  };
-
-  const removeCollaborator = (trackId: number, idx: number, isSingle = false) => {
-    if (isSingle) {
-      setSingle((prev) => ({
-        ...prev,
-        collaborators: prev.collaborators.filter((_, i) => i !== idx),
-      }));
-    } else {
-      setAlbum((prev) => ({
-        ...prev,
-        tracks: prev.tracks.map((t) =>
-          t.id === trackId ? { ...t, collaborators: t.collaborators.filter((_, i) => i !== idx) } : t
-        ),
-      }));
-    }
   };
 
   // ---- Submit handlers ----
   const submitSingle = async () => {
     if (!user) return;
+
     const form = new FormData();
     form.append("title", single.title);
-    form.append("primary_artist_id", String(user.user_id));
     if (single.file) form.append("audio", single.file);
-    form.append("collaborators", JSON.stringify(single.collaborators));
 
     try {
-      await api.post("/api/artists/singles", form);
+      const token = localStorage.getItem("pulse_token");
+      const res = await api.post("/api/artists/singles", form, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      console.log("Single submitted:", res.data);
+      alert("Single uploaded successfully!");
+      setSingle({ title: "" });
       setShowSingleModal(false);
-      setSingle({ title: "", collaborators: [] });
     } catch (err) {
-      console.error(err);
+      console.error("Single submit error:", err);
     }
   };
 
   const submitAlbum = async () => {
     if (!user) return;
+
     const form = new FormData();
     form.append("title", album.name);
-    form.append("artist_id", String(user.user_id));
     if (album.cover) form.append("cover", album.cover);
 
-    const tracksPayload = album.tracks.map((t) => ({
-      title: t.title,
-      audio_url: t.file ? URL.createObjectURL(t.file) : "",
-      collaborators: t.collaborators,
-    }));
-    form.append("tracks", JSON.stringify(tracksPayload));
+    album.tracks.forEach((t, index) => {
+      if (t.file) form.append(`track_${index}`, t.file);
+    });
+
+    form.append("tracks", JSON.stringify(
+      album.tracks.map((t, index) => ({ title: t.title, fileField: `track_${index}` }))
+    ));
 
     try {
-      await api.post("/api/artists/albums", form);
+      const res = await api.post("/api/artists/albums", form);
+      console.log("Album submitted successfully:", res.data);
+      alert("Album uploaded successfully!");
       setShowAlbumModal(false);
       setAlbum({ name: "", tracks: [] });
     } catch (err) {
-      console.error(err);
+      console.error("Album submit error:", err);
     }
   };
 
@@ -157,33 +136,15 @@ export default function ArtistDashboard() {
               onChange={(e) => setSingle({ ...single, title: e.target.value })}
               className="input-glass"
             />
-            <input type="file" accept="audio/*" onChange={(e) => setSingle({ ...single, file: e.target.files?.[0] })} />
+            <input
+              type="file"
+              accept="audio/*"
+              onChange={(e) => setSingle({ ...single, file: e.target.files?.[0] })}
+            />
 
-            <div className="space-y-2 mt-3">
-              <p className="text-sm text-white/60">Add Collaborators</p>
-              <select
-                onChange={(e) => {
-                  const artistId = Number(e.target.value);
-                  if (artistId) addCollaborator(0, artistId, "vocals", true);
-                }}
-                className="input-glass"
-              >
-                <option value="">Select Artist</option>
-                {Array.isArray(allArtists) && allArtists.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
-              <div className="flex gap-2 flex-wrap">
-                {single.collaborators.map((c, i) => (
-                  <span key={i} className="px-2 py-1 bg-white/10 rounded text-sm">
-                    {allArtists.find((a) => a.id === c.artist_id)?.name} ({c.role})
-                    <button onClick={() => removeCollaborator(0, i, true)} className="ml-1">x</button>
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <button onClick={submitSingle} className="btn-submit">Release Single</button>
+            <button onClick={submitSingle} className="btn-submit">
+              Release Single
+            </button>
           </div>
         </div>
       )}
@@ -203,7 +164,11 @@ export default function ArtistDashboard() {
               onChange={(e) => setAlbum({ ...album, name: e.target.value })}
               className="input-glass"
             />
-            <input type="file" accept="image/*" onChange={(e) => setAlbum({ ...album, cover: e.target.files?.[0] })} />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setAlbum({ ...album, cover: e.target.files?.[0] })}
+            />
 
             {album.tracks.map((t) => (
               <div key={t.id} className="glass p-3 space-y-2">
@@ -214,39 +179,34 @@ export default function ArtistDashboard() {
                   onChange={(e) =>
                     setAlbum((prev) => ({
                       ...prev,
-                      tracks: prev.tracks.map((x) => x.id === t.id ? { ...x, title: e.target.value } : x),
+                      tracks: prev.tracks.map((x) =>
+                        x.id === t.id ? { ...x, title: e.target.value } : x
+                      ),
                     }))
                   }
                   className="input-glass"
                 />
-                <input type="file" accept="audio/*" onChange={(e) =>
-                  setAlbum((prev) => ({
-                    ...prev,
-                    tracks: prev.tracks.map((x) => x.id === t.id ? { ...x, file: e.target.files?.[0] } : x),
-                  }))
-                } />
-
-                <select onChange={(e) => {
-                  const artistId = Number(e.target.value);
-                  if (artistId) addCollaborator(t.id, artistId, "vocals");
-                }} className="input-glass">
-                  <option value="">Add Collaborator</option>
-                  {allArtists.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
-
-                <div className="flex gap-2 flex-wrap">
-                  {t.collaborators.map((c, i) => (
-                    <span key={i} className="px-2 py-1 bg-white/10 rounded text-sm">
-                      {allArtists.find((a) => a.id === c.artist_id)?.name} ({c.role})
-                      <button onClick={() => removeCollaborator(t.id, i)} className="ml-1">x</button>
-                    </span>
-                  ))}
-                </div>
+                <input
+                  type="file"
+                  accept="audio/*"
+                  onChange={(e) =>
+                    setAlbum((prev) => ({
+                      ...prev,
+                      tracks: prev.tracks.map((x) =>
+                        x.id === t.id ? { ...x, file: e.target.files?.[0] } : x
+                      ),
+                    }))
+                  }
+                />
               </div>
             ))}
 
-            <button onClick={addAlbumTrack} className="btn-glass">+ Add Track</button>
-            <button onClick={submitAlbum} className="btn-submit">Release Album</button>
+            <button onClick={addAlbumTrack} className="btn-glass">
+              + Add Track
+            </button>
+            <button onClick={submitAlbum} className="btn-submit">
+              Release Album
+            </button>
           </div>
         </div>
       )}

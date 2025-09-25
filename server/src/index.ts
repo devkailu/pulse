@@ -9,6 +9,7 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import multer from "multer";
+import { upload, uploadsDir } from "./upload";
 
 import { query } from "./db";
 import artistRoutes from "./routes/artistRoutes";
@@ -43,12 +44,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, "uploads")),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
-});
-const upload = multer({ storage });
+app.use("/uploads", express.static(uploadsDir));
 
 const PORT = Number(process.env.PORT || 4000);
 const JWT_SECRET = process.env.JWT_SECRET || "devsecret";
