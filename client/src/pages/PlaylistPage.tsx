@@ -18,7 +18,7 @@ type Playlist = {
   name: string;
   description?: string;
   created_at?: string;
-  tracks: Track[]; // FIX: backend returns "tracks"
+  tracks: Track[];
 };
 
 export default function PlaylistPage() {
@@ -41,6 +41,15 @@ export default function PlaylistPage() {
     loadPlaylist();
   }, [id]);
 
+  // 🔹 Callback to remove track immediately from state
+  const removeTrackFromState = (trackId: number) => {
+    if (!playlist) return;
+    setPlaylist({
+      ...playlist,
+      tracks: playlist.tracks.filter((t) => t.id !== trackId),
+    });
+  };
+
   if (loading) return <div className="glass p-6">Loading playlist...</div>;
   if (!playlist) return <div className="glass p-6">Playlist not found</div>;
 
@@ -57,10 +66,10 @@ export default function PlaylistPage() {
       </header>
 
       <section className="space-y-2">
-        {playlist.tracks.length === 0 ? ( // FIX HERE
+        {playlist.tracks.length === 0 ? (
           <div className="text-gray-400">No songs in this playlist yet.</div>
         ) : (
-          playlist.tracks.map((t, index) => ( // FIX HERE
+          playlist.tracks.map((t, index) => (
             <TrackCard
               key={t.id}
               track={{
@@ -68,6 +77,7 @@ export default function PlaylistPage() {
                 artist: t.artists ? t.artists.join(", ") : "Unknown Artist",
                 index: index + 1,
               }}
+              onRemoveFromPlaylist={removeTrackFromState} // 🔹 pass callback
             />
           ))
         )}

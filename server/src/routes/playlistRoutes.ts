@@ -169,5 +169,64 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+router.post("/:playlistId/songs", async (req: Request, res: Response) => {
+  const userId = getUserIdFromReq(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const playlistId = Number(req.params.playlistId);
+  const { songId } = req.body;
+
+  if (!playlistId || !songId) return res.status(400).json({ error: "Missing data" });
+
+  try {
+    // Ensure the playlist belongs to the user
+    const playlists = await query(
+      `SELECT id FROM playlists WHERE id = ? AND user_id = ?`,
+      [playlistId, userId]
+    );
+    if (!playlists.length) return res.status(404).json({ error: "Playlist not found" });
+
+    // Insert song if not already present
+    await query(
+      `INSERT IGNORE INTO playlist_songs (playlist_id, song_id, position) VALUES (?, ?, 0)`,
+      [playlistId, songId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error adding song" });
+  }
+});
+
+router.delete("/:playlistId/songs/:songId", async (req: Request, res: Response) => {
+  const userId = getUserIdFromReq(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const playlistId = Number(req.params.playlistId);
+  const songId = Number(req.params.songId);
+
+  if (!playlistId || !songId) return res.status(400).json({ error: "Missing data" });
+
+  try {
+    // Ensure the playlist belongs to the user
+    const playlists = await query(
+      `SELECT id FROM playlists WHERE id = ? AND user_id = ?`,
+      [playlistId, userId]
+    );
+    if (!playlists.length) return res.status(404).json({ error: "Playlist not found" });
+
+    await query(
+      `DELETE FROM playlist_songs WHERE playlist_id = ? AND song_id = ?`,
+      [playlistId, songId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error removing song" });
+  }
+});
+
 
 export default router;
