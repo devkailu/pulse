@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   price DECIMAL(8,2) NOT NULL DEFAULT 0.00,
   max_devices INT NOT NULL DEFAULT 1,
   description VARCHAR(255)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
 
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
   avatar_url VARCHAR(255),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (subscription_id) REFERENCES subscriptions(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
 
 CREATE TABLE IF NOT EXISTS artists (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS artists (
   avatar_url VARCHAR(255),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
 
 CREATE TABLE IF NOT EXISTS albums (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS albums (
   total_playlength_seconds INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
 
 CREATE TABLE IF NOT EXISTS songs (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS songs (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (primary_artist_id) REFERENCES artists(id) ON DELETE CASCADE,
   FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
 
 -- M:N: songs ↔ artists
 CREATE TABLE IF NOT EXISTS song_artists (
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS song_artists (
   PRIMARY KEY (song_id, artist_id),
   FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE,
   FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
 
 -- follows: user follows artist
 CREATE TABLE IF NOT EXISTS follows (
@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS follows (
   PRIMARY KEY (user_id, artist_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
 
 -- playlists
 CREATE TABLE IF NOT EXISTS playlists (
@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS playlists (
   is_public BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
 
 CREATE TABLE IF NOT EXISTS playlist_songs (
   playlist_id BIGINT NOT NULL,
@@ -102,18 +102,7 @@ CREATE TABLE IF NOT EXISTS playlist_songs (
   PRIMARY KEY (playlist_id, song_id),
   FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
   FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -- Indexes
--- DROP INDEX idx_artists_name ON artists;
--- CREATE INDEX idx_artists_name ON artists(name);
-
--- DROP INDEX idx_albums_artist ON albums;
--- CREATE INDEX idx_albums_artist ON albums(artist_id);
-
--- DROP INDEX idx_songs_album ON songs;
--- CREATE INDEX idx_songs_album ON songs(album_id);
-
+);
 
 SET FOREIGN_KEY_CHECKS = 1;
 
